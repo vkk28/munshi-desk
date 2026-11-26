@@ -23,10 +23,11 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
-      - name: Start and check the keyless Docker app
-        run: |
-          docker compose up --build -d
-          curl --retry 5 --retry-connrefused --fail --silent http://127.0.0.1:8080/ | grep -F '<title>Munshi Desk'
+      - name: Start the keyless Docker app
+        run: docker compose up --build --wait --wait-timeout 60
+      - name: Verify the Docker app and Chrome extension
+        run: npm run test:browser
+        env:
+          MUNSHI_TEST_URL: http://127.0.0.1:8080
       - if: always()
         run: docker compose down
