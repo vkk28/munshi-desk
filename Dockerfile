@@ -1,6 +1,6 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json .npmrc ./
 COPY engine/package.json engine/
 COPY web/package.json web/
 COPY extension/package.json extension/

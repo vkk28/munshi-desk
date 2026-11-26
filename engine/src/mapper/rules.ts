@@ -12,7 +12,7 @@ const optionAlias: Record<string, string> = {
   bangalore: 'bengaluru', bengal: 'west bengal', tamilnadu: 'tamil nadu',
 }
 
-function cleanup(value: string) {
+export function cleanValue(value: string) {
   return tidy(tidy(value).replace(/^(?:(?:ka|ki|is|hai|ko|se|mein|me|to|mera|meri|my|please|change to|set to)\b[\s,]*)+/i, '')
     .replace(/(?:[\s,.]+(?:hai|tha|thi|saal|baras|karo|kar do|likho|dalo|daalo|aur|and|mera|meri))+(?=$|[,.])/i, ''))
 }
@@ -30,7 +30,7 @@ function distance(a: string, b: string) {
 }
 
 export function mapValue(field: Field, raw: string): { value: string; issue?: Issue } {
-  const input = cleanup(raw)
+  const input = cleanValue(raw)
   if (/^(?:clear|hatao|remove)$/i.test(input)) return { value: '' }
   if (field.manualOnly) return { value: '', issue: { code: 'manual', message: 'Fill this field manually.' } }
   if (field.kind === 'checkbox' && !field.options.length) {
@@ -76,7 +76,7 @@ export function segment(text: string, fields: Field[]) {
   return matches.flatMap((match, i) => {
     const field = dictionary.get(match[0].toLowerCase())!
     const start = match.index! + match[0].length
-    const raw = cleanup(text.slice(start, matches[i + 1]?.index))
+    const raw = cleanValue(text.slice(start, matches[i + 1]?.index))
     if (field.semantic === 'permanent_address' && matches[i + 1]?.[0].toLowerCase() === 'same as current') return []
     return [{ field, raw, keyword: match[0] }]
   })

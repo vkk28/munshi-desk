@@ -32,7 +32,7 @@ const tokensFor = (text: string) => text.toLowerCase().trim().split(/[\s,-]+/).f
 
 export function parseNumber(text: string): number | undefined {
   const tokens = tokensFor(text)
-  if (!tokens.length) return
+  if (!tokens.length || /^\s*-/.test(text)) return
   let sum = 0
   let group = 0
   let current: number | undefined
@@ -66,7 +66,7 @@ export function parseNumber(text: string): number | undefined {
 
 export function parseDigits(text: string): string | undefined {
   const tokens = tokensFor(text)
-  if (!tokens.length) return
+  if (!tokens.length || /^\s*-/.test(text)) return
   let digits = ''
   let repetitions = 1
   for (const token of tokens) {
