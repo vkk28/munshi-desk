@@ -1,13 +1,15 @@
-import { BrowserSpeaker, isCheckpoint, speechLocale, WebSpeechSttAdapter, type DeskView, type Language } from '@munshi/engine'
+import { BrowserSpeaker, isCheckpoint, MAX_UTTERANCE_LENGTH, receiveDictationPaste, speechLocale, WebSpeechSttAdapter, type DeskView, type Language } from '@munshi/engine'
 import { portName, type PageMessage, type PanelMessage } from './protocol'
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T
 const button = (id: string) => get<HTMLButtonElement>(id)
 const language = get<HTMLSelectElement>('language')
-const input = get<HTMLInputElement>('utterance')
+const input = get<HTMLTextAreaElement>('utterance')
+input.maxLength = MAX_UTTERANCE_LENGTH
 const stt = new WebSpeechSttAdapter()
 const speaker = new BrowserSpeaker()
 let mic = false
+let flowArmed = false
 let tabId: number | undefined
 let port: chrome.runtime.Port | undefined
 let generation = 0
@@ -16,13 +18,14 @@ let view: DeskView | undefined
 function send(message: PanelMessage) { port?.postMessage(message) }
 function setMic(on: boolean) {
   mic = on
-  button('mic').textContent = on ? 'Stop microphone' : 'Start microphone'
+  button('mic').textContent = on ? 'Stop browser mic' : 'Start browser mic'
 }
 function clear() {
   const previous = port
   port = undefined
   tabId = undefined
   view = undefined
+  flowArmed = false
   previous?.disconnect()
   stt.stop()
   speaker.cancel()
@@ -33,15 +36,18 @@ function clear() {
   get('phase').textContent = 'Standby'
   get('lock').textContent = 'Submit locked'
   get('note').textContent = 'Connect first.'
+  get('source').textContent = ''
   controls()
 }
 
 function controls() {
-  for (const id of ['send', 'mic']) button(id).disabled = !port
+  for (const id of ['send', 'mic', 'flow']) button(id).disabled = !port
   button('read').disabled = !port || view?.phase === 'VERIFYING' || view?.phase === 'PAUSED_MANUAL'
   button('undo').disabled = !port || view?.phase === 'IDLE' || view?.phase === 'PAUSED_MANUAL'
   button('resume').hidden = view?.phase !== 'PAUSED_MANUAL'
   button('confirm').hidden = view?.phase !== 'VERIFYING' || !view.completed
+  button('flow').textContent = flowArmed ? 'Focus Wispr Flow input' : 'Dictate with Wispr Flow'
+  get('flow-help').hidden = !flowArmed
 }
 
 function render(next: DeskView) {
@@ -50,6 +56,9 @@ function render(next: DeskView) {
     IDLE: 'Standby', LISTENING: 'Session active', VERIFYING: 'Read-back', PAUSED_MANUAL: 'Manual step', READY: 'Confirmed',
   }[next.phase]
   get('note').textContent = next.line || next.note
+  get('source').textContent = next.source ? {
+    'wispr-flow': 'Wispr Flow input', 'browser-mic': 'Browser mic', typed: 'Typed input', sample: 'Sample',
+  }[next.source] : ''
   get('lock').textContent = next.locked ? 'Submit locked' : 'Submit unlocked'
   get('fields').replaceChildren(...next.fields.map(({ field, filled, value, issue }) => {
     const item = document.createElement('li')
@@ -103,6 +112,9 @@ async function connect() {
         case 'submitted':
           stt.stop()
           setMic(false)
+          flowArmed = false
+          input.value = ''
+          controls()
           get('connection').textContent = 'Form submitted by the operator. Session cleared.'
           break
       }
@@ -116,6 +128,30 @@ async function connect() {
 }
 
 button('connect').addEventListener('click', () => void connect())
+button('flow').addEventListener('click', () => {
+  if (!port) return
+  stt.stop()
+  setMic(false)
+  flowArmed = true
+  if (view?.phase === 'IDLE') send({ type: 'start' })
+  controls()
+  input.focus()
+})
+button('pause-flow').addEventListener('click', () => {
+  flowArmed = false
+  controls()
+  input.focus()
+})
+input.addEventListener('paste', event => {
+  const value = receiveDictationPaste(event, Boolean(port) && flowArmed, input.value)
+  if (value) send({ type: 'utterance', value })
+})
+input.addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault()
+    input.form?.requestSubmit()
+  }
+})
 button('mic').addEventListener('click', () => {
   if (!port) return
   if (mic) {
@@ -123,6 +159,8 @@ button('mic').addEventListener('click', () => {
     setMic(false)
     return
   }
+  flowArmed = false
+  controls()
   send({ type: 'start' })
   stt.start(speechLocale(language.value as Language), {
     final: value => send({ type: 'utterance', value }), muted: () => speaker.muted,
@@ -139,8 +177,9 @@ for (const action of ['read', 'confirm', 'resume', 'undo'] as const) button(acti
 get<HTMLFormElement>('entry').addEventListener('submit', event => {
   event.preventDefault()
   if (!port || !input.value.trim()) return
-  send({ type: 'utterance', value: { text: input.value } })
+  send({ type: 'utterance', value: { text: input.value, source: 'typed' } })
   input.value = ''
+  input.focus()
 })
 chrome.tabs.onActivated.addListener(({ tabId: next }) => {
   if (tabId !== next) {

@@ -5,8 +5,9 @@ import { interpret } from './pipeline'
 import { phrase, readBack, speechLocale } from './prompts'
 import { Scanner } from './scanner'
 import { Session } from './session'
+import { LONG_UTTERANCE_MESSAGE, MAX_UTTERANCE_LENGTH } from './speech/dictation'
 import type { Speaker } from './speech/tts'
-import { isCheckpoint, type Candidate, type Diff, type Field, type Issue, type Language, type Patch, type Phase, type Schema, type Utterance } from './types'
+import { isCheckpoint, type Candidate, type Diff, type Field, type InputSource, type Issue, type Language, type Patch, type Phase, type Schema, type Utterance } from './types'
 import { crossValidate, hasValue, maskId, redactIds, validate } from './validators'
 
 export interface FieldView { field: Field; value: string; filled: boolean; issue?: Issue }
@@ -15,6 +16,7 @@ export interface DeskView {
   language: Language
   fields: FieldView[]
   diff: Diff[]
+  source?: InputSource
   note: string
   line: string
   review: string[]
@@ -43,6 +45,7 @@ export class DeskController {
   private line = ''
   private review: string[] = []
   private diff: Diff[] = []
+  private source?: InputSource
   private extraHints: Record<string, string[]> = {}
   private staged: Record<string, Issue> = {}
   private completed = false
@@ -71,7 +74,7 @@ export class DeskController {
     const issues = this.issues(values)
     return {
       phase: this.phase, language: this.language,
-      diff: this.diff, note: this.note, line: this.line, review: this.review, completed: this.completed,
+      diff: this.diff, source: this.source, note: this.note, line: this.line, review: this.review, completed: this.completed,
       locked: this.phase !== 'READY',
       fields: this.schema.fields.map(field => {
         const value = values[field.id] || ''
@@ -106,6 +109,7 @@ export class DeskController {
     this.session = new Session()
     this.staged = {}
     this.diff = []
+    this.source = undefined
     this.line = ''
     this.review = []
     this.note = defaultNote
@@ -171,8 +175,13 @@ export class DeskController {
   }
 
   ingest(utterance: Utterance) {
-    const text = utterance.text.trim().slice(0, 1500)
+    const text = utterance.text.trim()
     if (!text) return
+    if (text.length > MAX_UTTERANCE_LENGTH) {
+      this.note = LONG_UTTERANCE_MESSAGE
+      this.emit()
+      return
+    }
     if (this.phase === 'IDLE') this.start()
     const values = this.values()
     const result = interpret({ ...utterance, text }, this.schema.fields, values, this.session, this.now().getTime())
@@ -180,6 +189,7 @@ export class DeskController {
       if (result.command === 'resume') this.resume()
       return
     }
+    this.source = utterance.source || 'typed'
     this.diff = result.diff
     if (result.command) {
       switch (result.command) {
@@ -396,6 +406,7 @@ export class DeskController {
   private pause() {
     if (this.phase !== 'LISTENING' || !this.schema.fields.some(isCheckpoint)) return
     this.phase = transition(this.phase, 'PAUSE')
+    this.source = undefined
     this.diff = [{ type: 'kept', text: 'Voice input paused for manual verification.' }]
     this.note = 'Complete the security step on the form, then say “Aage badho” or choose Resume.'
     this.say('manual')

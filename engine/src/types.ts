@@ -23,7 +23,8 @@ export interface Field {
 export interface Schema { formId: string; fields: Field[] }
 export type DiffKind = 'kept' | 'filler' | 'replaced' | 'replacement' | 'ignored'
 export interface Diff { type: DiffKind; text: string }
-export interface Utterance { text: string; confidence?: number }
+export type InputSource = 'wispr-flow' | 'browser-mic' | 'typed' | 'sample'
+export interface Utterance { text: string; confidence?: number; source?: InputSource }
 export interface Patch {
   fieldId: string
   value: string

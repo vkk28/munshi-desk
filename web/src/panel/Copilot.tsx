@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { AudioLines, Check, ChevronDown, CircleAlert, Ear, LockKeyhole, Mic, MicOff, Pencil, RotateCcw, Send, ShieldCheck } from 'lucide-react'
 import type { DeskController, DeskView, FieldView, Language } from '@munshi/engine'
-import { isCheckpoint, suggestAliases } from '@munshi/engine'
+import { isCheckpoint, MAX_UTTERANCE_LENGTH, receiveDictationPaste, suggestAliases } from '@munshi/engine'
 
 const labels = {
   IDLE: 'Standby', LISTENING: 'Session active', PAUSED_MANUAL: 'Manual step',
   VERIFYING: 'Read-back', READY: 'Confirmed',
 }
+const sources = { 'wispr-flow': 'Wispr Flow input', 'browser-mic': 'Browser mic', typed: 'Typed input', sample: 'Sample' }
 const examples = {
   hi: 'नाम रामधारी यादव, उम्र चौंसठ',
   bho: 'Hamaar naam Ramdhari Yadav ba',
@@ -52,11 +54,15 @@ interface Props {
   meter: number
   error: string
   playback: boolean
+  flowArmed: boolean
+  dictation: RefObject<HTMLTextAreaElement | null>
+  onFlow: () => void
+  onPauseFlow: () => void
   onMic: () => void
   onLanguage: (language: Language) => void
 }
 
-export function Copilot({ view, desk, mic, meter, error, playback, onMic, onLanguage }: Props) {
+export function Copilot({ view, desk, mic, meter, error, playback, flowArmed, dictation, onFlow, onPauseFlow, onMic, onLanguage }: Props) {
   const [typed, setTyped] = useState('')
   const [aliasStatus, setAliasStatus] = useState('')
   const aliasRun = useRef<AbortController | null>(null)
@@ -86,13 +92,15 @@ export function Copilot({ view, desk, mic, meter, error, playback, onMic, onLang
       <span className={`status-pill ${view.phase.toLowerCase()}`}>{labels[view.phase]}</span>
     </header>
     <div className="voice-controls">
+      <button type="button" className={`button flow-start ${flowArmed ? 'secondary' : 'primary'}`} onClick={onFlow} disabled={playback}
+        aria-controls="typed-utterance"><AudioLines size={17} /> {flowArmed ? 'Focus Wispr Flow input' : 'Dictate with Wispr Flow'}</button>
       <label className="voice-language"><span>Speech language</span>
         <span className="select-wrap"><select aria-label="Speech language" value={view.language} disabled={playback} onChange={event => onLanguage(event.target.value as Language)}>
           <option value="hi">हिन्दी · Hindi</option><option value="bho">भोजपुरी · Bhojpuri</option><option value="hinglish">Hinglish</option>
           <option disabled>Kannada</option><option disabled>Tamil</option>
         </select><ChevronDown size={14} /></span>
       </label>
-      <button className={`mic-button ${mic ? 'active' : ''}`} aria-label={mic ? 'Stop microphone' : 'Start microphone'} title={mic ? 'Stop microphone' : 'Start microphone'} onClick={onMic} disabled={playback}>
+      <button className={`mic-button ${mic ? 'active' : ''}`} aria-label={mic ? 'Stop browser microphone' : 'Start browser microphone'} title={mic ? 'Stop browser microphone' : 'Start browser microphone'} onClick={onMic} disabled={playback}>
         {mic ? <MicOff size={20} /> : <Mic size={20} />}
       </button>
       <div className={`level ${mic ? 'active' : ''}`} aria-hidden="true"><i style={{ width: `${meter * 100}%` }} /></div>
@@ -113,7 +121,7 @@ export function Copilot({ view, desk, mic, meter, error, playback, onMic, onLang
     </section>
 
     <section className="transcript">
-      <div className="panel-heading"><h3>Transcript</h3><AudioLines size={15} /></div>
+      <div className="panel-heading"><h3>Transcript</h3>{view.source && <span>{sources[view.source]}</span>}<AudioLines size={15} /></div>
       <p className="transcript-line" aria-live="polite">{view.diff.length ? view.diff.map(({ type, text }, i) =>
         <span key={i} className={`token-${type}`}>{text}{type === 'replaced' ? <span className="diff-arrow"> → </span> : ' '}</span>,
       ) : <span className="transcript-empty">Spoken or typed entries appear here.</span>}</p>
@@ -132,13 +140,26 @@ export function Copilot({ view, desk, mic, meter, error, playback, onMic, onLang
 
     <form className="voice-entry" onSubmit={event => {
       event.preventDefault()
-      desk?.ingest({ text: typed })
+      desk?.ingest({ text: typed, source: 'typed' })
       setTyped('')
+      dictation.current?.focus()
     }}>
-      <label htmlFor="typed-utterance">Type what you would say</label>
+      <label htmlFor="typed-utterance">Dictation or typed utterance</label>
+      {flowArmed && <div className="dictation-help"><p id="flow-help">Use your Wispr Flow shortcut in this box. A paste into an empty box applies as one turn.</p><button type="button" className="text-button" onClick={onPauseFlow}>Pause Flow capture</button></div>}
       <div>
-        <input id="typed-utterance" placeholder={view.phase === 'PAUSED_MANUAL' ? 'Aage badho' : examples[view.language]} value={typed}
-          onChange={event => setTyped(event.target.value)} disabled={playback} autoComplete="off" maxLength={1500} />
+        <textarea id="typed-utterance" ref={dictation} rows={2} aria-describedby={flowArmed ? 'flow-help' : undefined}
+          placeholder={view.phase === 'PAUSED_MANUAL' ? 'Aage badho' : examples[view.language]} value={typed}
+          onChange={event => setTyped(event.target.value)} disabled={playback} autoComplete="off" spellCheck={false} maxLength={MAX_UTTERANCE_LENGTH}
+          onPaste={event => {
+            const utterance = receiveDictationPaste(event.nativeEvent, flowArmed && !playback, typed)
+            if (utterance) desk?.ingest(utterance)
+          }}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault()
+              event.currentTarget.form?.requestSubmit()
+            }
+          }} />
         <button aria-label="Send utterance" title="Send utterance" className="button primary" disabled={!typed.trim() || playback}><Send size={16} /></button>
       </div>
     </form>

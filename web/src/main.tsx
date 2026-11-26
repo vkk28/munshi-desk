@@ -52,6 +52,7 @@ interface DeskProps {
 function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: DeskProps) {
   const formRoot = useRef<HTMLDivElement>(null)
   const desk = useRef<DeskController | null>(null)
+  const dictation = useRef<HTMLTextAreaElement>(null)
   const stt = useRef(new WebSpeechSttAdapter())
   const meterRun = useRef<AbortController | null>(null)
   const run = useRef<AbortController | null>(null)
@@ -59,6 +60,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
   const [revision, setRevision] = useState(0)
   const [submitted, setSubmitted] = useState(false)
   const [mic, setMic] = useState(false)
+  const [flowArmed, setFlowArmed] = useState(false)
   const [meter, setMeter] = useState(0)
   const [error, setError] = useState('')
   const [sample, setSample] = useState(scenarios[0].id)
@@ -78,6 +80,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
       speaker: new BrowserSpeaker(), holdIdle: true, onChange: setView,
       onSubmit: () => {
         stopMic()
+        setFlowArmed(false)
         run.current?.abort()
         setPlayback(false)
         setStep('')
@@ -122,11 +125,21 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
     afterRequest()
   }, [request])
 
+  const armFlow = () => {
+    if (playback) return
+    stopMic()
+    setError('')
+    setFlowArmed(true)
+    if (desk.current?.view.phase === 'IDLE') desk.current.start()
+    dictation.current?.focus()
+  }
+
   const toggleMic = () => {
     const controller = desk.current
     if (mic) return stopMic()
     if (!controller) return
     setError('')
+    setFlowArmed(false)
     controller.start()
     const meterController = new AbortController()
     meterRun.current = meterController
@@ -141,7 +154,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
     const shortcut = (event: KeyboardEvent) => {
       if (event.altKey && event.code === 'KeyM' && !event.repeat) {
         event.preventDefault()
-        if (!playback) toggleMic()
+        armFlow()
       }
     }
     window.addEventListener('keydown', shortcut)
@@ -156,6 +169,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
 
   const reset = () => {
     stopMic()
+    setFlowArmed(false)
     run.current?.abort()
     setPlayback(false)
     setStep('')
@@ -180,7 +194,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
         <span className="practice-pill"><FlaskConical size={15} /> Practice mode</span>
         <details className="help">
           <summary aria-label="How to use Munshi Desk"><CircleHelp size={20} /></summary>
-          <div><strong>How to use Munshi Desk</strong><p>Choose a service and start the microphone or type what the citizen says. Voice recognition may use your browser’s speech service. Use practice details here.</p><p>Say “Read back” to verify. After it finishes, say “Haan” to unlock Submit. Press <kbd>Alt</kbd> + <kbd>M</kbd> to toggle the microphone.</p></div>
+          <div><strong>How to use Munshi Desk</strong><p>Choose a service, select Dictate with Wispr Flow, then use your Flow shortcut in the focused box. The browser microphone and typed input also work. Use practice details here.</p><p>Say “Read back” to verify. After it finishes, say “Haan” to unlock Submit. Press <kbd>Alt</kbd> + <kbd>M</kbd> to focus Wispr Flow input.</p></div>
         </details>
       </div>
     </header>
@@ -229,7 +243,7 @@ function PracticeDesk({ portal, request, onPortal, onSample, afterRequest }: Des
         </div>
       </main>
       <Copilot key={revision} view={view} desk={desk.current} mic={mic} meter={meter} error={error} playback={playback}
-        onMic={toggleMic} onLanguage={language => {
+        flowArmed={flowArmed} dictation={dictation} onFlow={armFlow} onPauseFlow={() => setFlowArmed(false)} onMic={toggleMic} onLanguage={language => {
           if (mic) stopMic()
           desk.current?.setLanguage(language)
         }} />

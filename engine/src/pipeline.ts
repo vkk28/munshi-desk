@@ -5,6 +5,7 @@ import { rewriteBhojpuri } from './normalize/lexicon.bho'
 import { transliterate } from './normalize/transliterate'
 import { keyText } from './semantics'
 import type { Session } from './session'
+import { normalizeFlowText } from './speech/dictation'
 import { isCheckpoint, type Candidate, type Diff, type Field, type Utterance } from './types'
 import { redactIds, validate } from './validators'
 
@@ -12,17 +13,18 @@ export type Command = 'read' | 'confirm' | 'no' | 'resume' | 'undo' | 'manual'
 export interface Interpretation { command?: Command; candidates: Candidate[]; diff: Diff[]; question?: Field }
 
 const commands: Record<string, Command> = {
-  'read back': 'read', 'padho': 'read', 'padh kar sunao': 'read', 'bad ke sunawa': 'read',
+  'read back': 'read', 'read it back': 'read', 'please read it back': 'read', 'read back the form': 'read', 'padho': 'read', 'padh kar sunao': 'read', 'bad ke sunawa': 'read',
   'haan': 'confirm', 'han': 'confirm', 'yes': 'confirm', 'confirm': 'confirm', 'theek hai': 'confirm',
   'nahi': 'no', 'nahin': 'no', 'no': 'no',
-  'resume': 'resume', 'aage badho': 'resume', 'aage badhein': 'resume',
+  'resume': 'resume', 'aage badho': 'resume', 'aage badhein': 'resume', 'aage badhen': 'resume',
   'undo': 'undo', 'pichla hatao': 'undo', 'pichhla hatao': 'undo',
   'otp': 'manual', 'captcha': 'manual', 'enter otp': 'manual', 'otp aa gaya': 'manual',
 }
 
 export function interpret(input: Utterance, fields: Field[], values: Record<string, string>, session: Session, now: number): Interpretation {
   const roman = transliterate(input.text)
-  const text = rewriteBhojpuri(roman).replace(/[‐‑-](?=[a-z])/gi, ' ').replace(/\b(?:edit|change|set|correct|update)\s+(?:the\s+)?(?=[a-z])/gi, '')
+  const normalized = normalizeFlowText(roman)
+  const text = rewriteBhojpuri(normalized).replace(/[‐‑-](?=[a-z])/gi, ' ').replace(/\b(?:edit|change|set|correct|update)\s+(?:the\s+)?(?=[a-z])/gi, '')
   const clean = (part: string) => stripFillers(part).replace(/[\s,.!?]+/g, ' ').trim()
   const command = commands[keyText(clean(text))]
   if (command) return { command, candidates: [], diff: fillerDiff(roman) }

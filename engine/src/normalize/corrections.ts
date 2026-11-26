@@ -1,6 +1,6 @@
 import { stripFillers } from './fillers'
 
-const correctionCue = /\b(?:nahi+n?|galat(?:\s+hai)?|make it|i mean|matlab)\b/gi
+const correctionCue = /\b(?:(?:sorry[ ,]+)?(?:make (?:it|that)|i mean|actually)|nahi+n?|galat(?:\s+hai)?|matlab)\b/gi
 
 export function correction(raw: string) {
   for (const match of Array.from(raw.matchAll(correctionCue)).reverse()) {

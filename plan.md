@@ -4,13 +4,14 @@
 
 ## Core flow
 
-The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hinglish. Munshi Desk scans the DOM, transcribes and normalizes the speech, maps phrases to visible fields, and fills validated entries. The copilot shows what changed, including fillers, corrections and discarded chatter. The desk pauses for manual verification, reads back the populated critical fields, and unlocks the operator’s Submit button when the citizen confirms. The practice app clears the form and session after submission.
+The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hinglish. Wispr Flow transcribes the conversation into the focused Munshi Desk input. The desk scans the DOM, normalizes each delivered turn, maps phrases to visible fields, and fills validated entries. The copilot shows what changed, including fillers, corrections and discarded chatter. The desk pauses for manual verification, reads back the populated critical fields, and unlocks the operator’s Submit button when the citizen confirms. The practice app clears the form and session after submission.
 
 ## Design decisions
 
 | Issue in the source plan | Implementation |
 | --- | --- |
-| Browser speech is keyless but can use remote recognition | The deterministic text engine and sample player run locally. Use browser speech only when the microphone is explicitly started. |
+| Use Wispr Flow for primary speech input | Accept each completed desktop dictation in the focused box through Flow’s documented text insertion. Browser mic, text and samples also feed the shared engine. Docker works without a Flow account. |
+| Flow can polish the transcript before delivery | Normalize multiline formatting and sentence-style values. Test the same focus and clipboard-paste behavior in Chromium. Keep voice commands separate from data turns. |
 | Speech confidence can produce plausible but wrong values | Confidence zero is treated as unreported. Nonzero values below 0.75 and invalid values are staged rather than written. Operators can review or replace them. |
 | Age and birth date are related but either field can be entered first | Check the pair after each meaningful change. Keep Submit locked until the discrepancy is resolved. Generate the sample’s expected age from the date so it keeps working in future years. |
 | A read-back correction can arrive before the first read-back finishes | Re-read only corrected fields after a completed first read-back. An edit before that point requires a fresh full read-back. Any change after confirmation invalidates it. |
@@ -28,6 +29,7 @@ The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hingl
 4. **M3** · browser speech adapters and mic activity, manual challenge pause, read-back and confirmation guards.
 5. **M4** · three keyless sample conversations, a fourth mixed-label portal, optional local label suggestions.
 6. **M5** · Manifest V3 side panel, privacy audit, tests, fresh Docker build and public GitHub source.
+7. **Engineering acceptance** · Native paste and focus tests for the Wispr Flow input, plus a desktop Flow smoke test with practice data before preparing submission media.
 
 The public repo must start with one Compose command at port 8080, show the main screen without secrets, and contain original implementation code. Verify the complete sample in a fresh clone. A separate machine smoke test is the final portability check.
 

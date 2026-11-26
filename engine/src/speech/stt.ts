@@ -60,7 +60,7 @@ export class WebSpeechSttAdapter implements SttAdapter {
       if (callbacks.muted()) return
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
-        if (result.isFinal) callbacks.final({ text: result[0].transcript, confidence: result[0].confidence })
+        if (result.isFinal) callbacks.final({ text: result[0].transcript, confidence: result[0].confidence, source: 'browser-mic' })
       }
     }
     recognition.onerror = ({ error }) => {

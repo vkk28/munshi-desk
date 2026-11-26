@@ -98,11 +98,11 @@ kbd { border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; backg
 .section-icon { width: 34px; height: 34px; background: #f0f4f1; border-radius: 9px; color: #50786a; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px 16px; }
 .control { display: flex; flex-direction: column; align-items: stretch; gap: 7px; font-size: 14px; font-weight: 660; min-width: 0; }
-.control input, .control textarea, .control select, .voice-entry input, .quick-edit input {
+.control input, .control textarea, .control select, .voice-entry textarea, .quick-edit input {
   width: 100%; min-height: 41px; max-width: 100%; background: #fff; border: 1px solid #d5dfd9; border-radius: 8px; padding: 9px 11px; color: var(--ink);
   font-size: 14px; font-weight: 450;
 }
-.control :is(input, textarea, select)::placeholder, .voice-entry input::placeholder { color: #62726c; opacity: 1; }
+.control :is(input, textarea, select)::placeholder, .voice-entry textarea::placeholder { color: #62726c; opacity: 1; }
 .control textarea { resize: vertical; min-height: 64px; }
 .control small { font-size: 12px; color: var(--muted); font-weight: 500; }
 .control select { padding-right: 26px; }
@@ -174,7 +174,7 @@ kbd { border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; backg
 .verify p { color: var(--muted); margin: 5px 0 8px; min-height: 15px; font-size: 12px; line-height: 1.45; }
 .voice-entry { padding: 10px 15px 14px; }
 .voice-entry > div { display: flex; align-items: center; gap: 6px; }
-.voice-entry input { min-width: 0; min-height: 37px; font-size: 13px; }
+.voice-entry textarea { min-width: 0; min-height: 37px; font-size: 13px; }
 .voice-entry button { flex: none; padding-inline: 9px; }
 
 @media (max-width: 1200px) {
@@ -228,3 +228,7 @@ kbd { border: 1px solid var(--line); border-radius: 4px; padding: 1px 4px; backg
 .mapper-settings summary { cursor: pointer; text-align: left; }
 .mapper-settings p { margin: 5px 0; line-height: 1.45; }
 .mapper-settings button { min-height: 29px; font-size: 12px; }
+
+.flow-start { grid-column: 1 / -1; }
+.voice-entry textarea { resize: vertical; max-height: 90px; }
+.dictation-help { color: var(--muted); font-size: 12px; line-height: 1.4; margin-bottom: 7px; }

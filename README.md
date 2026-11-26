@@ -12,12 +12,23 @@ docker compose up --build
 
 Open [localhost:8080](http://localhost:8080). No account, API key, model download, or microphone is required for the guided flow.
 
+## Dictate with Wispr Flow
+
+1. Run Wispr Flow on your desktop. For mixed Hindi and English written in Latin script, choose **Hinglish** in Flow’s language settings. Choose **Hindi** for Devanagari. [Wispr Flow language settings](https://docs.wisprflow.ai/articles/3191899797-use-flow-with-multiple-languages)
+2. Open a practice portal and click **Dictate with Wispr Flow** or press **Alt+M** in the web app to focus the input. Use your configured Flow dictation shortcut and release it after a short turn. [Desktop dictation setup](https://docs.wisprflow.ai/articles/3152211871)
+3. Flow pastes the resulting text into the focused box. The enabled box applies a paste as one turn and stays focused. Ordinary typing, dictation that appears as editable text, and pastes into a box with an existing draft can be applied with **Enter** or **Send**. [Flow insertion and recovery](https://docs.wisprflow.ai/articles/7971211038-fix-text-not-pasting-after-dictation)
+4. Try “My name is Ramdhari Yadav. I am 64 years old,” then “Pincode kya hai?” followed by “800001.” For the full flow, enter the practice verification code by hand, then dictate “Aage badho,” “Read it back,” and, after the read-back ends, “Haan” as separate turns.
+
+In this mode, the app receives the text inserted into its own input. It does not read the system clipboard in the background or request a Wispr Flow key. Wispr Flow handles speech recognition and its own settings. Browser speech is a separate fallback.
+
+### Keyless guided demo
+
 1. On **Old Age Pension**, choose **Pension from start to finish** and click **Play**. The sample feeds timed utterances through the real mapper, including a correction across two speech events.
 2. The sample operator enters a synthetic OTP directly in the practice form. The desk reads the application back, changes a detail at the citizen’s request, and reads that field again.
 3. After **Haan**, click **Submit practice form**. The practice data clears and a receipt appears.
 4. Try the **Bhojpuri at a busy desk** and **Catch a conflicting application** samples. **More portals** opens the mixed-script, accessibility-label-only Residence Register.
 
-For mic input, use desktop Chrome and choose a language before clicking the microphone. Typed Hindi, Romanized Hindi, Bhojpuri and Hinglish use the same engine. Examples include `नाम रामधारी यादव, उम्र चौंसठ`, `Pincode kya hai?` followed by `800001`, and `undo`. Choose **View read-back** to review the spoken lines on screen.
+For the browser microphone fallback, use desktop Chrome and choose a language before clicking the mic icon. Typed Hindi, Romanized Hindi, Bhojpuri and Hinglish use the same engine. Examples include `नाम रामधारी यादव, उम्र चौंसठ`, `Pincode kya hai?` followed by `800001`, and `undo`. Choose **View read-back** to review the spoken lines on screen.
 
 ## Development
 
@@ -29,6 +40,8 @@ npm run dev
 npm run check
 npm test
 npm run build
+npx playwright install chromium
+npm run test:browser
 ```
 
 - `engine/` contains DOM scanning, normalization, mapping, validation, speech adapters and submission state.
@@ -38,14 +51,14 @@ npm run build
 
 ## Chrome extension
 
-Run `npm run build -w extension`, then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `extension/dist`. Open a form, click the extension’s toolbar icon or use its assigned shortcut, then connect the side panel to the tab. Use **Mic permissions** in the panel if Chrome needs a separate permission grant.
+Run `npm run build -w extension`, then open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `extension/dist`. Open a form, click the extension’s toolbar icon or use its assigned shortcut, then connect the side panel to the tab. The panel includes the same **Dictate with Wispr Flow** input. **Mic permissions** is available when you choose the browser-mic fallback.
 
 The extension uses temporary access to the activated tab. It chooses the main form on pages with multiple forms, can scan same-origin frame documents, and releases the form when the panel disconnects. Tested behavior is limited to normal HTML controls, accessible labels and synthetic fixtures. Cross-origin frames, opaque widgets, and portals that submit outside the browser’s standard form event require site-specific integration.
 
 ## Data and verification
 
 - The app stores session data in memory. The practice portals use synthetic data and submit locally. No transcript or ID is written to disk, browser storage, or logs by the app.
-- Chrome’s browser speech recognizer may send microphone audio to its speech service. Typed input and samples use the local deterministic engine. Open the app on localhost or HTTPS for microphone access.
+- Wispr Flow processes dictation audio in its cloud and has its own history and privacy controls. The browser recognizer may also send its audio to the browser’s speech service. Typed input and samples use the local deterministic engine. Open the app on localhost or HTTPS for microphone access. [Wispr Flow privacy controls](https://docs.wisprflow.ai/articles/3467817258-security-and-compliance-faq)
 - The copilot and read-back mask ID values. OTP/CAPTCHA input is manual and excluded from transcript and read-back. The local check verifies a 12-digit checksum in the prototype and does not contact an identity provider.
 - Invalid and low-confidence suggestions stay in the amber review queue. Cross-field checks flag valid-looking values that conflict. The postal lookup covers representative demo prefixes and is not an official national directory. [India Post’s Patna GPO listing](https://www.indiapost.gov.in/post-office-details-name?officename=Patna+GPO)
 - **Mapping · local rules** offers optional label synonyms on Chrome devices with the on-device model already installed. The adapter receives public form labels and types. It does not receive utterances, entered values or keys. Rules stay active if the model is unavailable. [Chrome Prompt API](https://developer.chrome.com/docs/ai/prompt-api)

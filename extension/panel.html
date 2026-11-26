@@ -9,16 +9,18 @@
   <main>
     <p id="connection" role="status">Connect to the form in this tab.</p>
     <button id="connect" type="button">Connect to this tab</button>
+    <button id="flow" type="button" disabled>Dictate with Wispr Flow</button>
+    <div id="flow-help" hidden><p>Use your Flow shortcut in the focused box. A paste into an empty box applies as one turn.</p><button id="pause-flow" type="button">Pause Flow capture</button></div>
     <label>Speech language
       <select id="language"><option value="hi">Hindi</option><option value="bho">Bhojpuri</option><option value="hinglish">Hinglish</option></select>
     </label>
-    <div class="row"><button id="mic" type="button" disabled>Start microphone</button><button id="permissions" type="button">Mic permissions</button></div>
+    <div class="row"><button id="mic" type="button" disabled>Start browser mic</button><button id="permissions" type="button">Mic permissions</button></div>
     <section><div class="row heading"><h2>Field review</h2><button id="undo" type="button" disabled>Undo</button></div><ul id="fields"></ul></section>
-    <section><h2>Transcript</h2><p id="transcript" aria-live="polite">Spoken or typed entries appear here.</p></section>
+    <section><div class="row heading"><h2>Transcript</h2><span id="source"></span></div><p id="transcript" aria-live="polite">Spoken or typed entries appear here.</p></section>
     <section><h2 id="lock">Submit locked</h2><p id="note" role="status">Connect first.</p><div class="row">
       <button id="read" type="button" disabled>Read back</button><button id="confirm" type="button" hidden>Confirm read-back</button><button id="resume" type="button" hidden>Resume</button>
     </div></section>
-    <form id="entry"><label>Type an utterance<input id="utterance" maxlength="1500" autocomplete="off" placeholder="Naam Ramdhari Yadav"></label><button id="send" disabled>Send</button></form>
+    <form id="entry"><label>Dictation or typed utterance<textarea id="utterance" rows="2" autocomplete="off" spellcheck="false" placeholder="Naam Ramdhari Yadav"></textarea></label><button id="send" disabled>Send</button></form>
   </main>
   <script src="panel.js"></script>
 </body>

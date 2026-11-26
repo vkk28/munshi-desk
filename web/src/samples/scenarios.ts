@@ -69,7 +69,7 @@ export async function playScenario(scenario: Scenario, controller: DeskControlle
     if (signal.aborted) return
     if ('text' in step) {
       onStep(step.text, index + 1, steps.length)
-      controller.ingest({ text: step.text })
+      controller.ingest({ text: step.text, source: 'sample' })
     } else if ('manual' in step) {
       onStep('Sample operator enters the practice code on the form', index + 1, steps.length)
       fillPracticeCode()
