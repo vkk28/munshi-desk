@@ -31,7 +31,15 @@ In this mode, the app receives the text inserted into its own input. It does not
 1. On **Old Age Pension**, choose **Pension from start to finish** and click **Play walkthrough**. The sample feeds timed utterances through the real mapper, including a correction across two speech events.
 2. The sample operator enters a synthetic OTP directly in the practice form. The desk reads the application back, hears the citizen correct the PIN from 800002 to 800001, and reads back the new PIN. On a device without working speech output, the walkthrough simulates reviewing the values on screen.
 3. After **Haan**, click **Submit practice form**. The practice data clears and a receipt appears.
-4. Try the **Bhojpuri at a busy desk** and **Catch a conflicting application** samples. The service tabs also offer domicile, grievance and residence walkthroughs. Each runs against its own form.
+4. Try **Bhojpuri at a busy desk** for a follow-up question amid background chatter, or **Catch a conflicting application** to see the desk flag a mismatch between age and date of birth.
+
+Select another service tab and click **Play walkthrough** to try a different form.
+
+| Practice service | What to look for |
+| --- | --- |
+| Domicile Certificate | Say that the permanent address is the same as the current address. The form links the fields so the operator only enters the address once. |
+| Municipal Grievance | One turn fills the ward and the free-text complaint. The incident date and practice CAPTCHA stay manual. |
+| Residence Register | A Hindi turn fills the name, village and PIN on a bilingual form. The desk converts Devanagari PIN digits for the form and presents the details for citizen review. |
 
 For the browser microphone fallback, use desktop Chrome and choose a language and select **Browser mic**. Bhojpuri uses local language rules and prompts with the browser’s Hindi speech locale. Recognition quality depends on the speech provider. Typed Hindi, Romanized Hindi, Bhojpuri and Hinglish use the same engine. Examples include `नाम रामधारी यादव, उम्र चौंसठ`, `Pincode kya hai?` followed by `800001`, and `undo`. Choose **View read-back** to review the spoken lines on screen.
 
