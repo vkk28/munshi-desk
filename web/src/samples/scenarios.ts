@@ -15,9 +15,9 @@ export const scenarios: Scenario[] = [
       say(`um, nahi, ${age()}`),
       say('Father name Suresh Yadav, current address Gandhi Maidan, district Patna, state Bihar'),
       say('Permanent address same as current'),
-      say('Janm tithi pandrah August unnis sau baasath, pincode 800001'),
+      say('Janm tithi pandrah August unnis sau baasath, pincode 800002'),
       { manual: true }, say('Aage badho'), { read: true },
-      say(`Nahi, umar ${age() + 1} hai`), { wait: true }, say('Haan'),
+      say('Nahi, pincode 800001'), { wait: true }, say('Haan'),
     ],
   },
   {
@@ -39,6 +39,23 @@ export const scenarios: Scenario[] = [
       say('पिनकोड गलत है ८००००१ करो'),
       say(agePhrase()), { manual: true }, say('Aage badho'), { read: true }, say('Haan'),
     ],
+  },
+  {
+    id: 'domicile', title: 'Domicile walkthrough', detail: 'Copy a spoken address into both address fields', language: 'hinglish', portal: 'domicile',
+    steps: () => [
+      say('Naam Meera Devi, current address Gandhi Maidan, state Bihar'), say('Permanent address same as current'),
+      say('Pincode 800001'), { manual: true }, say('Resume'), { read: true }, say('Haan'),
+    ],
+  },
+  {
+    id: 'grievance', title: 'Grievance walkthrough', detail: 'Report a broken street light', language: 'hinglish', portal: 'grievance',
+    steps: () => [
+      say('Ward 12, description Broken street light near the school'), { manual: true }, say('Resume'), { read: true }, say('Haan'),
+    ],
+  },
+  {
+    id: 'residence', title: 'Residence walkthrough', detail: 'Fill a mixed-label form in Hindi', language: 'hi', portal: 'residence',
+    steps: () => [say('नाम रामधारी यादव, गाँव फुलवारी, पिनकोड ८००००१'), { read: true }, say('हाँ')],
   },
 ]
 
@@ -74,11 +91,15 @@ export async function playScenario(scenario: Scenario, controller: DeskControlle
       onStep('Sample operator enters the practice code on the form', index + 1, steps.length)
       fillPracticeCode()
     } else if ('read' in step) {
-      onStep('Citizen reads back the application', index + 1, steps.length)
+      onStep('The desk reads the application back to the citizen', index + 1, steps.length)
       await controller.verify()
     }
-    if (controller.view.phase === 'VERIFYING') {
-      while (!signal.aborted && controller.view.phase === 'VERIFYING' && !controller.view.completed) {
+    while (!signal.aborted && controller.view.phase === 'VERIFYING' && !controller.view.completed) {
+      if (controller.view.readbackFallback) {
+        onStep('Sample citizen reviews the details on screen', index + 1, steps.length)
+        await delay(pace, signal)
+        if (!signal.aborted) controller.acknowledgeReadback()
+      } else {
         await delay(80, signal)
       }
     }

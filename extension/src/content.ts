@@ -11,19 +11,19 @@ if (!context.munshiInstalled) {
     if (port.name !== portName || port.sender?.id !== chrome.runtime.id) return
     closeCurrent?.()
     let connected = true
-    let active: { id: number; resolve: () => void; onLine?: (line: string) => void } | undefined
+    let active: { id: number; resolve: (success: boolean) => void; onLine?: (line: string) => void } | undefined
     let sequence = 0
     const send = (message: PageMessage) => { if (connected) port.postMessage(message) }
     const speaker: Speaker = {
       get muted() { return Boolean(active) },
       cancel() {
-        active?.resolve()
+        active?.resolve(false)
         active = undefined
         send({ type: 'cancel' })
       },
       speak(lines, locale, onLine) {
         this.cancel()
-        return new Promise(resolve => {
+        return new Promise<boolean>(resolve => {
           active = { id: ++sequence, resolve, onLine }
           send({ type: 'speak', id: active.id, lines, locale })
         })
@@ -44,14 +44,17 @@ if (!context.munshiInstalled) {
         case 'utterance': controller.ingest(message.value); break
         case 'language': controller.setLanguage(message.value); break
         case 'start': controller.start(); break
+        case 'ask': controller.askNextQuestion(); break
+        case 'dismiss-question': controller.dismissInterview(); break
         case 'read': void controller.verify(); break
         case 'confirm': controller.confirm(); break
+        case 'acknowledge-readback': controller.acknowledgeReadback(); break
         case 'undo': controller.undo(); break
         case 'resume': controller.resume(); break
         case 'line': if (active?.id === message.id) active.onLine?.(message.text); break
         case 'spoken':
           if (active?.id === message.id) {
-            active.resolve()
+            active.resolve(message.success)
             active = undefined
           }
           break

@@ -1,4 +1,4 @@
-import { BrowserSpeaker, isCheckpoint, MAX_UTTERANCE_LENGTH, receiveDictationPaste, speechLocale, WebSpeechSttAdapter, type DeskView, type Language } from '@munshi/engine'
+import { BrowserSpeaker, isCheckpoint, nextInterviewQuestion, MAX_UTTERANCE_LENGTH, receiveDictationPaste, speechLocale, WebSpeechSttAdapter, type DeskView, type Language } from '@munshi/engine'
 import { portName, type PageMessage, type PanelMessage } from './protocol'
 
 const get = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T
@@ -7,7 +7,7 @@ const language = get<HTMLSelectElement>('language')
 const input = get<HTMLTextAreaElement>('utterance')
 input.maxLength = MAX_UTTERANCE_LENGTH
 const stt = new WebSpeechSttAdapter()
-const speaker = new BrowserSpeaker()
+const speaker = new BrowserSpeaker(playing => stt.setSuspended(playing))
 let mic = false
 let flowArmed = false
 let tabId: number | undefined
@@ -18,6 +18,7 @@ let view: DeskView | undefined
 function send(message: PanelMessage) { port?.postMessage(message) }
 function setMic(on: boolean) {
   mic = on
+  button('mic').setAttribute('aria-pressed', String(on))
   button('mic').textContent = on ? 'Stop browser mic' : 'Start browser mic'
 }
 function clear() {
@@ -37,6 +38,7 @@ function clear() {
   get('lock').textContent = 'Submit locked'
   get('note').textContent = 'Connect first.'
   get('source').textContent = ''
+  get('readback-review').replaceChildren()
   controls()
 }
 
@@ -46,6 +48,14 @@ function controls() {
   button('undo').disabled = !port || view?.phase === 'IDLE' || view?.phase === 'PAUSED_MANUAL'
   button('resume').hidden = view?.phase !== 'PAUSED_MANUAL'
   button('confirm').hidden = view?.phase !== 'VERIFYING' || !view.completed
+  get('readback-fallback').hidden = !view?.readbackFallback
+  const canInterview = view && (view.phase === 'IDLE' || view.phase === 'LISTENING') && nextInterviewQuestion(view.fields, view.language)
+  button('ask').hidden = !canInterview
+  button('ask').textContent = view?.interview ? 'Repeat question' : 'Ask next question'
+  button('dismiss-question').hidden = !view?.interview
+  get('question').hidden = !view?.interview
+  get('question').textContent = view?.interview?.text || ''
+  get('question').lang = view?.language === 'hinglish' ? 'en-IN' : view?.language || 'hi'
   button('flow').textContent = flowArmed ? 'Focus Wispr Flow input' : 'Dictate with Wispr Flow'
   get('flow-help').hidden = !flowArmed
 }
@@ -60,6 +70,11 @@ function render(next: DeskView) {
     'wispr-flow': 'Wispr Flow input', 'browser-mic': 'Browser mic', typed: 'Typed input', sample: 'Sample',
   }[next.source] : ''
   get('lock').textContent = next.locked ? 'Submit locked' : 'Submit unlocked'
+  get('readback-review').replaceChildren(...(next.readbackFallback ? next.review : []).map(text => {
+    const item = document.createElement('li')
+    item.textContent = text
+    return item
+  }))
   get('fields').replaceChildren(...next.fields.map(({ field, filled, value, issue }) => {
     const item = document.createElement('li')
     if (issue) item.className = 'issue'
@@ -102,20 +117,18 @@ async function connect() {
       switch (message.type) {
         case 'view': render(message.value); break
         case 'cancel': speaker.cancel(); break
-        case 'speak':
+        case 'speak': {
+          const report = (success: boolean) => {
+            if (port === connection) send({ type: 'spoken', id: message.id, success })
+          }
           void speaker.speak(message.lines, message.locale, text => {
             if (port === connection) send({ type: 'line', id: message.id, text })
-          }).finally(() => {
-            if (port === connection) send({ type: 'spoken', id: message.id })
-          })
+          }).then(report, () => report(false))
           break
+        }
         case 'submitted':
-          stt.stop()
-          setMic(false)
-          flowArmed = false
-          input.value = ''
-          controls()
-          get('connection').textContent = 'Form submitted by the operator. Session cleared.'
+          clear()
+          get('connection').textContent = 'Submission requested. Check the site for its result. The voice desk has disconnected.'
           break
       }
     })
@@ -127,6 +140,8 @@ async function connect() {
   }
 }
 
+button('ask').addEventListener('click', () => { send({ type: 'ask' }); input.focus() })
+button('dismiss-question').addEventListener('click', () => send({ type: 'dismiss-question' }))
 button('connect').addEventListener('click', () => void connect())
 button('flow').addEventListener('click', () => {
   if (!port) return
@@ -173,7 +188,7 @@ language.addEventListener('change', () => {
   setMic(false)
 })
 button('permissions').addEventListener('click', () => void chrome.runtime.openOptionsPage())
-for (const action of ['read', 'confirm', 'resume', 'undo'] as const) button(action).addEventListener('click', () => send({ type: action }))
+for (const action of ['read', 'confirm', 'acknowledge-readback', 'resume', 'undo'] as const) button(action).addEventListener('click', () => send({ type: action }))
 get<HTMLFormElement>('entry').addEventListener('submit', event => {
   event.preventDefault()
   if (!port || !input.value.trim()) return

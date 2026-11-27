@@ -1,9 +1,10 @@
 import { cleanValue, copyAddress, isQuestion, mapValue, segment } from './mapper/rules'
+import { matchesInterviewAnswer } from './interview'
 import { correction } from './normalize/corrections'
 import { fillerDiff, stripFillers } from './normalize/fillers'
 import { rewriteBhojpuri } from './normalize/lexicon.bho'
 import { transliterate } from './normalize/transliterate'
-import { keyText } from './semantics'
+import { aliases, keyText } from './semantics'
 import type { Session } from './session'
 import { normalizeFlowText } from './speech/dictation'
 import { isCheckpoint, type Candidate, type Diff, type Field, type Utterance } from './types'
@@ -18,13 +19,20 @@ const commands: Record<string, Command> = {
   'nahi': 'no', 'nahin': 'no', 'no': 'no',
   'resume': 'resume', 'aage badho': 'resume', 'aage badhein': 'resume', 'aage badhen': 'resume',
   'undo': 'undo', 'pichla hatao': 'undo', 'pichhla hatao': 'undo',
-  'otp': 'manual', 'captcha': 'manual', 'enter otp': 'manual', 'otp aa gaya': 'manual',
 }
 
-export function interpret(input: Utterance, fields: Field[], values: Record<string, string>, session: Session, now: number): Interpretation {
+const checkpointTerms = [...aliases.otp, ...aliases.captcha, 'o t p', 'one time pin']
+
+export function interpret(input: Utterance, fields: Field[], values: Record<string, string>, session: Session, now: number, interviewField?: Field): Interpretation {
   const roman = transliterate(input.text)
   const normalized = normalizeFlowText(roman)
   const text = rewriteBhojpuri(normalized).replace(/[‐‑-](?=[a-z])/gi, ' ').replace(/\b(?:edit|change|set|correct|update)\s+(?:the\s+)?(?=[a-z])/gi, '')
+  // A spoken code can appear before or after its label, even beside ordinary fields.
+  // Keep the entire turn out of the field mapper and the visible transcript.
+  const words = ' ' + keyText(text) + ' '
+  if (checkpointTerms.some(label => words.includes(' ' + label + ' '))) {
+    return { command: 'manual', candidates: [], diff: [{ type: 'kept', text: 'Enter the verification code on the form.' }] }
+  }
   const clean = (part: string) => stripFillers(part).replace(/[\s,.!?]+/g, ' ').trim()
   const command = commands[keyText(clean(text))]
   if (command) return { command, candidates: [], diff: fillerDiff(roman) }
@@ -47,9 +55,10 @@ export function interpret(input: Utterance, fields: Field[], values: Record<stri
     const prefix = edit.replacement.slice(0, stop).replace(/^[\s,.!?:]+|[\s,.!?:]+$/g, '')
     let field = before.at(-1)?.field
     if (prefix && !field) {
-      field = session.recentFields(now).map(id => fields.find(item => item.id === id))
+      const possible = interviewField ? [interviewField] : session.recentFields(now).map(id => fields.find(item => item.id === id))
+      field = possible
         .find(item => {
-          if (!item || isCheckpoint(item) || item.semantic === 'free') return false
+          if (!item || isCheckpoint(item) || item.semantic === 'free' || (interviewField && !matchesInterviewAnswer(item, cleanValue(prefix)))) return false
           const mapped = mapValue(item, prefix)
           return Boolean(mapped.value) && !mapped.issue && !validate(item, mapped.value, new Date(now))
         })
@@ -64,6 +73,11 @@ export function interpret(input: Utterance, fields: Field[], values: Record<stri
       const prior = before.at(-1)
       const same = after.find(item => item.field === prior?.field)
       if (prior?.raw && same) replaced = { before: prior.raw, after: same.raw }
+      else if (!prior && after.length === 1) {
+        const next = after[0]
+        const previous = values[next.field.id]
+        if (previous && next.raw && !isQuestion(next.raw)) replaced = { before: previous, after: next.raw }
+      }
     }
     after.forEach(item => add(item.field, item.raw))
   } else {
@@ -81,12 +95,12 @@ export function interpret(input: Utterance, fields: Field[], values: Record<stri
   }
 
   if (!candidates.length && !question) {
-    const pending = fields.find(field => field.id === session.pending(now))
+    const pending = interviewField ?? fields.find(field => field.id === session.pending(now))
     if (pending && !isCheckpoint(pending)) {
       const raw = stripFillers(text)
       const mapped = mapValue(pending, raw)
       const noise = /\b(?:chai|rupaye|rupees|fees|bhaiya| cup | weather )\b/i.test(raw)
-      if (mapped.value && !noise) add(pending, raw)
+      if (mapped.value && !noise && (!interviewField || matchesInterviewAnswer(pending, cleanValue(raw)))) add(pending, raw)
     }
   }
 

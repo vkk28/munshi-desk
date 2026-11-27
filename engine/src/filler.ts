@@ -31,6 +31,13 @@ export class Filler {
     return Boolean(this.read(id)) && (input?.validity?.valid ?? true)
   }
 
+  violatesConstraints(id: string) {
+    return this.scanner.target(id)?.controls.some(control => {
+      const input = control as HTMLInputElement
+      return input.willValidate && !input.validity.valid && !input.validity.valueMissing
+    }) ?? false
+  }
+
   write(id: string, value: string) {
     const target = this.scanner.target(id)
     if (!target || !target.field.writable || isCheckpoint(target.field) || target.field.manualOnly) return false

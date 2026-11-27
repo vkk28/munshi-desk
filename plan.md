@@ -4,7 +4,7 @@
 
 ## Core flow
 
-The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hinglish. Wispr Flow transcribes the conversation into the focused Munshi Desk input. The desk scans the DOM, normalizes each delivered turn, maps phrases to visible fields, and fills validated entries. The copilot shows what changed, including fillers, corrections and discarded chatter. The desk pauses for manual verification, reads back the populated critical fields, and unlocks the operator’s Submit button when the citizen confirms. The practice app clears the form and session after submission.
+The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hinglish. Wispr Flow transcribes the conversation into the focused Munshi Desk input. The desk scans the DOM, normalizes each delivered turn, maps phrases to visible fields, and fills validated entries. The copilot shows what changed, including fillers, corrections and discarded chatter. The desk pauses for manual verification, reads back the populated application fields, and unlocks the operator’s Submit button when the citizen confirms. The practice app clears the form and session after submission.
 
 ## Design decisions
 
@@ -19,7 +19,7 @@ The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hingl
 | A local UI lock alone can be bypassed by pressing Enter | Disable native submit controls and intercept standard submit events during the session, including changes made after read-back. On an external site, the site's security and submission rules remain in effect. |
 | Model keys in the client would enlarge the privacy and deployment footprint | Use an optional on-device Chrome model for extra form-label synonyms. The model sees labels, not citizen values or utterances. All validation and write decisions stay in the deterministic engine. |
 | Geographical coverage can overpromise accuracy | Use a representative postal lookup for the prototype and leave unknown prefixes unchecked. Use official, preferably exact-code data in a district pilot. |
-| The judge may have no mic or a browser without speech synthesis | Preserve the typed path and three paced samples. Provide a visible copy of the dynamic read-back. |
+| The judge may have no mic or a browser without speech synthesis | Offer a typed path and a paced walkthrough for each portal. On silent devices, require an explicit screen review before confirmation. |
 
 ## Software milestones
 
@@ -27,7 +27,7 @@ The operator opens a form and listens to the citizen in Hindi, Bhojpuri or Hingl
 2. **M1** · deterministic Hindi/Hinglish/Bhojpuri normalization, numbers and dates, token diffs, corrections, question binding, undo and validators.
 3. **M2** · DOM scanning, native control filling, field review and three distinct practice portals.
 4. **M3** · browser speech adapters and mic activity, manual challenge pause, read-back and confirmation guards.
-5. **M4** · three keyless sample conversations, a fourth mixed-label portal, optional local label suggestions.
+5. **M4** · keyless sample conversations, a fourth mixed-label portal, optional local label suggestions.
 6. **M5** · Manifest V3 side panel, privacy audit, tests, fresh Docker build and public GitHub source.
 7. **Engineering acceptance** · Native paste and focus tests for the Wispr Flow input, plus a desktop Flow smoke test with practice data before preparing submission media.
 
@@ -41,4 +41,8 @@ The public repo must start with one Compose command at port 8080, show the main 
 - Optional HTTPS preview with working speaker controls and microphone permission.
 - The final hackathon portal submission is a separate, single-use step.
 
-The product at this stage is a prototype. The proposed pilot would measure entry time, data error and rejection rates, spot-audited field accuracy and voluntary repeat usage with operators in two districts. It would also evaluate a local or appropriately hosted Hindi/Bhojpuri speech provider before handling real citizen data.
+## Demonstrating the pension workflow
+
+Record one continuous take with two people and fictional details. Show the citizen answering a Hindi or Bhojpuri question, the operator entering the practice OTP, and the citizen catching an incorrect PIN during read-back. Keep the original and corrected PIN visible as the citizen speaks. Finish with the confirmed practice receipt. Identify the dictation provider and any synthetic examples used in the recording.
+
+Before claiming time savings or accuracy, ask three service-counter operators to complete matched fictional pension applications using their usual workflow and Munshi Desk. Alternate which workflow each operator tries first. Record completion time, incorrect final fields, corrections caught by the citizen and any time the operator has to take over. Report each paired result with its sample size, including failed sessions. A subsequent district pilot can measure repeat usage and evaluate recognition in typical counter noise.

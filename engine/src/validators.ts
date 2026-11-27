@@ -68,8 +68,9 @@ export function crossValidate(schema: Schema, values: Record<string, string>, to
   const age = fieldOf('age')
   if (birth && age) {
     const date = parseDate(values[birth.id], birth.dateFormat)!
-    if (Math.abs(ageAt(date, today) - Number(values[age.id])) > 1) {
-      flag(birth, age, 'Age and date of birth do not match.')
+    const expectedAge = ageAt(date, today)
+    if (expectedAge !== Number(values[age.id])) {
+      flag(birth, age, `This birth date gives an age of ${expectedAge} today. Check the age and birth date with the applicant.`)
     }
   }
   const pin = fieldOf('pincode')

@@ -90,10 +90,10 @@ describe('practice forms', () => {
     await desk.verify()
     expect(desk.view.completed).toBe(true)
     const before = voice.calls.length
-    await say(`Nahi, umar ${age() + 1} hai`)
+    await say('Nahi, pincode 800002')
     expect(voice.calls).toHaveLength(before + 1)
     expect(voice.calls.at(-1)).toHaveLength(2)
-    expect(desk.view.fields.find(item => item.field.semantic === 'age')?.value).toBe(String(age() + 1))
+    expect(desk.view.fields.find(item => item.field.semantic === 'pincode')?.value).toBe('800002')
     await say('Haan')
     expect(desk.view.phase).toBe('READY')
     expect(submitButton().disabled).toBe(false)

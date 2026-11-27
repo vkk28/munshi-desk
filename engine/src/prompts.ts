@@ -12,7 +12,6 @@ const hindi: Partial<Record<Semantic, string>> = {
 }
 const digits = ['शून्य', 'एक', 'दो', 'तीन', 'चार', 'पाँच', 'छह', 'सात', 'आठ', 'नौ']
 const hindiDigits = (value: string) => value.replace(/[0-9]/g, digit => '०१२३४५६७८९'[Number(digit)])
-const critical = new Set<Semantic>(['name', 'age', 'dob', 'pincode', 'aadhaar', 'mobile', 'address', 'permanent_address', 'same_address', 'description'])
 
 export const speechLocale = (language: Language) => language === 'hinglish' ? 'en-IN' : 'hi-IN'
 
@@ -38,9 +37,18 @@ export function readBack(fields: Field[], values: Record<string, string>, langua
   const lines: string[] = []
   for (const field of fields) {
     const value = values[field.id]
-    if (isCheckpoint(field) || !hasValue(field, value) ||
-        (only ? !only.includes(field.id) : !field.required && !critical.has(field.semantic))) continue
+    if (isCheckpoint(field) || (only && !only.includes(field.id))) continue
     const english = language === 'hinglish'
+    const label = english ? field.semantic === 'aadhaar' ? 'ID ending in' : field.label : hindi[field.semantic] || field.label
+    if (!hasValue(field, value)) {
+      if (only) {
+        const cleared = field.kind === 'checkbox' && !field.options.length
+          ? english ? 'no' : 'नहीं'
+          : english ? 'cleared' : 'हटा दिया गया है'
+        lines.push(`${label}, ${cleared}`)
+      }
+      continue
+    }
     let spoken = redactIds(value)
     if (field.kind === 'checkbox' && !field.options.length) spoken = english ? 'yes' : 'हाँ'
     if (['pincode', 'mobile', 'aadhaar'].includes(field.semantic)) {
@@ -52,7 +60,6 @@ export function readBack(fields: Field[], values: Record<string, string>, langua
         day: 'numeric', month: 'long', year: 'numeric',
       })
     }
-    const label = english ? field.semantic === 'aadhaar' ? 'ID ending in' : field.label : hindi[field.semantic] || field.label
     if (!english) spoken = hindiDigits(spoken)
     lines.push(`${label}, ${spoken}`)
   }

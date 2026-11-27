@@ -5,7 +5,7 @@ import type { Candidate, Field, Issue } from '../types'
 import { isCheckpoint } from '../types'
 
 const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-const tidy = (value: string) => value.trim().replace(/^[\s:?,.!=]+|[\s:?,.!=]+$/g, '')
+const tidy = (value: string) => value.trim().replace(/^[\s:?,.!=;]+|[\s:?,.!=;]+$/g, '')
 const asTitle = (value: string) => value.replace(/\b[a-z]/gi, letter => letter.toUpperCase())
 const optionAlias: Record<string, string> = {
   purush: 'male', aadmi: 'male', mahila: 'female', stree: 'female', anya: 'other', dilli: 'delhi',
@@ -14,7 +14,7 @@ const optionAlias: Record<string, string> = {
 
 export function cleanValue(value: string) {
   return tidy(tidy(value).replace(/^(?:(?:ka|ki|is|hai|ko|se|mein|me|to|mera|meri|my|please|change to|set to)\b[\s,]*)+/i, '')
-    .replace(/(?:[\s,.]+(?:hai|tha|thi|saal|baras|karo|kar do|likho|dalo|daalo|aur|and|my|the|his|her|mera|meri))+(?=$|[,.])/i, ''))
+    .replace(/(?:[\s,.!?;]+(?:hai|tha|thi|saal|baras|karo|kar do|likho|dalo|daalo|aur|and|my|the|his|her|mera|meri|mere))+$/i, ''))
 }
 
 function distance(a: string, b: string) {

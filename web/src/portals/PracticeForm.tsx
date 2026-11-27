@@ -3,10 +3,10 @@ import type { ReactNode } from 'react'
 import { Building2, CalendarDays, Landmark, LockKeyhole, MapPin, ShieldCheck, UserRound } from 'lucide-react'
 
 export const portals = {
-  pension: { title: 'Old Age Pension', nav: 'Old Age Pension', subtitle: 'Social welfare', description: 'Capture applicant details for a new pension application.', icon: Landmark },
-  domicile: { title: 'Domicile Certificate', nav: 'Domicile Certificate', subtitle: 'Revenue services', description: 'Record the applicant’s identity and residential details.', icon: MapPin },
-  grievance: { title: 'Municipal Grievance', nav: 'Municipal Grievance', subtitle: 'Municipal services', description: 'Record a local issue for the municipal service desk.', icon: Building2 },
-  residence: { title: 'Residence Register', nav: 'Residence Register', subtitle: 'Mixed-label portal', description: 'A bilingual practice portal with a different field order.', icon: Building2 },
+  pension: { title: 'Old Age Pension', nav: 'Old Age Pension', hindi: 'वृद्धावस्था पेंशन', subtitle: 'Social welfare', description: 'Record the citizen’s details by voice, then read the application back together.', icon: Landmark },
+  domicile: { title: 'Domicile Certificate', nav: 'Domicile Certificate', hindi: 'निवास प्रमाण पत्र', subtitle: 'Revenue services', description: 'Collect the citizen’s address by voice and check it together before submitting.', icon: MapPin },
+  grievance: { title: 'Municipal Grievance', nav: 'Municipal Grievance', hindi: 'नगरपालिका शिकायत', subtitle: 'Municipal services', description: 'Listen to the citizen’s account and verify the complaint in their own words.', icon: Building2 },
+  residence: { title: 'Residence Register', nav: 'Residence Register', hindi: 'निवास रजिस्टर', subtitle: 'Mixed-label portal', description: 'Enter the citizen’s residence details on a bilingual form and read them back.', icon: Building2 },
 }
 export type Portal = keyof typeof portals
 export const practiceCode = '246810'
@@ -130,10 +130,11 @@ function Residence() {
   </Section>
 }
 
-export function PracticeForm({ portal, locked }: { portal: Portal; locked: boolean }) {
+export function PracticeForm({ portal, locked, onResume }: { portal: Portal; locked: boolean; onResume?: () => void }) {
   const Form = { pension: Pension, domicile: Domicile, grievance: Grievance, residence: Residence }[portal]
   return <form id={`practice-${portal}`} onSubmit={event => event.preventDefault()} autoComplete="off">
     <Form />
+    {onResume && <div className="resume-at-form"><button className="button" type="button" onClick={onResume}>Resume voice session</button></div>}
     <div className="form-submit">
       <span>{locked ? <LockKeyhole size={15} /> : <ShieldCheck size={16} />}{locked ? 'Confirm read-back to unlock submission.' : 'Read-back confirmed. Ready to submit.'}</span>
       <button className="button primary" type="submit">Submit practice form</button>

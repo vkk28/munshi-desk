@@ -1,23 +1,23 @@
 const wordsByNumber = [
   'zero shunya sifar', 'ek one', 'do two', 'teen tin three', 'chaar char four',
   'paanch panch five', 'chhe chhah che chha six', 'saat sat seven', 'aath ath eight', 'nau nav nine',
-  'das ten', 'gyarah gyaarah', 'barah baarah', 'terah', 'chaudah', 'pandrah pandra',
-  'solah', 'satrah satrah', 'atharah athara', 'unnis unees unnees',
-  'bees bis', 'ikkis ikkees', 'baais bais', 'teis teiis', 'chaubees chaubis',
+  'das ten', 'gyarah gyaarah eleven', 'barah baarah twelve', 'terah thirteen', 'chaudah fourteen', 'pandrah pandra fifteen',
+  'solah sixteen', 'satrah seventeen', 'atharah athara eighteen', 'unnis unees unnees nineteen',
+  'bees bis twenty', 'ikkis ikkees', 'baais bais', 'teis teiis', 'chaubees chaubis',
   'pachis pachchis pachchees', 'chhabbis chabbis', 'sattais satais', 'atthais athais', 'untees untis',
-  'tees tis', 'ikattis ikatees', 'battis battees', 'taintis taintees', 'chauntis chauntees',
+  'tees tis thirty', 'ikattis ikatees', 'battis battees', 'taintis taintees', 'chauntis chauntees',
   'paintis paintees', 'chhattis chhattees', 'saintis saintees', 'adhtis adhtees', 'untalis untaalis',
-  'chalis chaalis', 'iktalis iktaalis', 'bayalis bayaalis', 'taintalis taintaalis', 'chauvalis chavalis chavaalis',
+  'chalis chaalis forty', 'iktalis iktaalis', 'bayalis bayaalis', 'taintalis taintaalis', 'chauvalis chavalis chavaalis',
   'paintalis paintaalis', 'chhiyalis chhiyalis', 'saintalis saintaalis', 'adtalis adtaalis', 'unchas unchaas',
-  'pachas pachaas', 'ikyavan ikyawan', 'bavan baavan bawan', 'tirpan tirpann', 'chauvan chauwan',
+  'pachas pachaas fifty', 'ikyavan ikyawan', 'bavan baavan bawan', 'tirpan tirpann', 'chauvan chauwan',
   'pachpan', 'chhappan chappan', 'sattavan sattawan', 'atthavan athavan', 'unsath unsaath',
-  'saath sath', 'iksath iksaath', 'baasath basath baasat', 'tirsath tirsaath', 'chausath chaunsath chausatt',
+  'saath sath sixty', 'iksath iksaath', 'baasath basath baasat', 'tirsath tirsaath', 'chausath chaunsath chausatt',
   'painsath painsaath', 'chhiyasath chhiyasaath', 'sadsath sadsaath', 'adsath adsaath', 'unhattar unhatar',
-  'sattar', 'ikhattar ikhatar', 'bahattar bahatar', 'tihattar tihatar', 'chauhattar chauhatar',
+  'sattar seventy', 'ikhattar ikhatar', 'bahattar bahatar', 'tihattar tihatar', 'chauhattar chauhatar',
   'pachhattar pachattar', 'chhihattar chhihatar', 'satahattar satattar', 'athahattar athattar', 'unasi unaasi',
-  'assi assee', 'ikyasi ikyaasi', 'bayasi bayaasi', 'tirasi tiraasi', 'chaurasi chauraasi',
+  'assi assee eighty', 'ikyasi ikyaasi', 'bayasi bayaasi', 'tirasi tiraasi', 'chaurasi chauraasi',
   'pachasi pachaasi', 'chhiyasi chhiyaasi', 'sattasi sattaasi', 'atthasi atthaasi', 'navasi navaasi',
-  'nabbe navve', 'ikyanve ikyanbey', 'banve baanve', 'tiranve tiraanve', 'chauranve chauraanve',
+  'nabbe navve ninety', 'ikyanve ikyanbey', 'banve baanve', 'tiranve tiraanve', 'chauranve chauraanve',
   'pachanve pachaanve', 'chhiyanve chhiyaanve', 'sattanve sattaanve', 'atthanve atthaanve', 'ninyanve ninyaanve',
 ]
 const unit = new Map(wordsByNumber.flatMap((words, number) => words.split(' ').map(word => [word, number] as const)))
@@ -28,7 +28,10 @@ const scales: Record<string, number> = {
 const modifiers: Record<string, number> = { sawa: 0.25, sava: 0.25, paune: -0.25, pauna: -0.25, saadhe: 0.5, sadhe: 0.5 }
 
 const valueOf = (token: string) => /^\d+$/.test(token) ? Number(token) : unit.get(token)
-const tokensFor = (text: string) => text.toLowerCase().trim().split(/[\s,-]+/).filter(Boolean)
+const tokensFor = (text: string) => text.toLowerCase()
+  .replace(/\b(twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)[ -]+(one|two|three|four|five|six|seven|eight|nine)\b/g,
+    (_, tens: string, ones: string) => String(unit.get(tens)! + unit.get(ones)!))
+  .trim().split(/[\s,-]+/).filter(Boolean)
 
 export function parseNumber(text: string): number | undefined {
   const tokens = tokensFor(text)

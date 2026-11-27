@@ -99,7 +99,14 @@ export class Scanner {
       if (style?.display === 'none' || style?.visibility === 'hidden') continue
       const form = input.form || element.closest('form')
       // A page can also use a collection of controls without a native form.
-      const labelOf = (control: Element) => (control as HTMLInputElement).labels?.[0]?.textContent?.replace(/\s*\*$/, '')?.trim()
+      const labelOf = (control: Element) => {
+        const label = (control as HTMLInputElement).labels?.[0]
+        if (!label) return
+        // An enclosing label may also contain options, a textarea draft, or a field hint.
+        const copy = label.cloneNode(true) as HTMLLabelElement
+        copy.querySelectorAll('input, textarea, select, small, [aria-hidden="true"]').forEach(node => node.remove())
+        return copy.textContent?.replace(/\s*\*$/, '').trim()
+      }
       const ariaIds = element.getAttribute('aria-labelledby')?.trim().split(/\s+/) || []
       const labelledBy = ariaIds.map(id => element.ownerDocument.getElementById(id)?.textContent || '').join(' ').trim()
       const heading = element.closest('fieldset')?.querySelector('legend')?.textContent?.trim() ||

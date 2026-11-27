@@ -4,3 +4,6 @@
 coverage
 .env*
 .DS_Store
+output/
+test-results/
+playwright-report/

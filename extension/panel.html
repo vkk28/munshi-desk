@@ -1,26 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Munshi Desk</title><link rel="stylesheet" href="panel.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#173f37">
+  <title>Munshi Desk</title>
+  <link rel="stylesheet" href="panel.css">
 </head>
-<body>
-  <header><h1>Munshi Desk</h1><span id="phase">Standby</span></header>
+<body class="side-panel">
+  <header class="masthead">
+    <h1>Munshi Desk</h1>
+    <span id="phase">Standby</span>
+  </header>
   <main>
-    <p id="connection" role="status">Connect to the form in this tab.</p>
-    <button id="connect" type="button">Connect to this tab</button>
-    <button id="flow" type="button" disabled>Dictate with Wispr Flow</button>
-    <div id="flow-help" hidden><p>Use your Flow shortcut in the focused box. A paste into an empty box applies as one turn.</p><button id="pause-flow" type="button">Pause Flow capture</button></div>
-    <label>Speech language
-      <select id="language"><option value="hi">Hindi</option><option value="bho">Bhojpuri</option><option value="hinglish">Hinglish</option></select>
-    </label>
-    <div class="row"><button id="mic" type="button" disabled>Start browser mic</button><button id="permissions" type="button">Mic permissions</button></div>
-    <section><div class="row heading"><h2>Field review</h2><button id="undo" type="button" disabled>Undo</button></div><ul id="fields"></ul></section>
-    <section><div class="row heading"><h2>Transcript</h2><span id="source"></span></div><p id="transcript" aria-live="polite">Spoken or typed entries appear here.</p></section>
-    <section><h2 id="lock">Submit locked</h2><p id="note" role="status">Connect first.</p><div class="row">
-      <button id="read" type="button" disabled>Read back</button><button id="confirm" type="button" hidden>Confirm read-back</button><button id="resume" type="button" hidden>Resume</button>
-    </div></section>
-    <form id="entry"><label>Dictation or typed utterance<textarea id="utterance" rows="2" autocomplete="off" spellcheck="false" placeholder="Naam Ramdhari Yadav"></textarea></label><button id="send" disabled>Send</button></form>
+    <div class="connection">
+      <p id="connection" role="status">Connect to the form in this tab.</p>
+      <button id="connect" type="button">Connect to this tab</button>
+    </div>
+
+    <section class="dictation" aria-label="Dictation">
+      <button id="flow" type="button" disabled>Dictate with Wispr Flow</button>
+      <div class="speech-row">
+        <label for="language">Speech language</label>
+        <select id="language">
+          <option value="hi">हिन्दी · Hindi</option><option value="bho">भोजपुरी · Bhojpuri</option><option value="hinglish">Hinglish</option>
+        </select>
+      </div>
+      <form id="entry">
+        <label for="utterance">Dictation or typed utterance</label>
+        <textarea id="utterance" rows="2" autocomplete="off" spellcheck="false" placeholder="Naam Ramdhari Yadav"></textarea>
+        <button id="send" disabled>Send</button>
+      </form>
+      <div id="flow-help" hidden>
+        <p>Use your Flow shortcut in the focused box. A paste into an empty box applies as one turn.</p>
+        <button id="pause-flow" type="button">Pause Flow capture</button>
+      </div>
+      <div class="row">
+        <button id="mic" type="button" disabled aria-pressed="false">Start browser mic</button>
+        <button id="ask" type="button" hidden>Ask next question</button>
+        <button id="dismiss-question" type="button" hidden>Dismiss question</button>
+      </div>
+      <p id="question" role="status" hidden></p>
+    </section>
+
+    <section class="verification" aria-labelledby="lock">
+      <h2 id="lock">Submit locked</h2>
+      <p id="note" role="status">Connect first.</p>
+      <div id="readback-fallback" hidden>
+        <ul id="readback-review" aria-label="Application details for read-back"></ul>
+        <button id="acknowledge-readback" type="button">Mark on-screen review complete</button>
+      </div>
+      <div class="row">
+        <button id="read" type="button" disabled>Read back</button>
+        <button id="confirm" type="button" hidden>Confirm read-back</button>
+        <button id="resume" type="button" hidden>Resume</button>
+      </div>
+    </section>
+
+    <section class="record" aria-labelledby="transcript-heading">
+      <div class="row heading">
+        <h2 id="transcript-heading">Transcript</h2>
+        <span id="source"></span>
+      </div>
+      <p id="transcript" aria-live="polite">Spoken or typed entries appear here.</p>
+    </section>
+
+    <section class="record" aria-labelledby="review-heading">
+      <div class="row heading">
+        <h2 id="review-heading">Field review</h2>
+        <button id="undo" type="button" disabled>Undo</button>
+      </div>
+      <ul id="fields"></ul>
+    </section>
+
+    <details class="speech-settings">
+      <summary>Microphone permissions</summary>
+      <div class="row"><button id="permissions" type="button">Mic permissions</button></div>
+    </details>
   </main>
   <script src="panel.js"></script>
 </body>

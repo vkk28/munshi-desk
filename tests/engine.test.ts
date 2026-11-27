@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { mapValue } from '../engine/src/mapper/rules'
 import {
   ageAt, crossValidate, formatDate, interpret, maskId, parseDate, parseDigits, parseNumber, readBack, Session,
   transition, transliterate, validDate, validId, validate, type Field, type Semantic,
@@ -41,6 +42,42 @@ describe('normalization and intent', () => {
     expect(validDate(parseDate('29/02/2025')!, today)).toBe(false)
     expect(validDate(parseDate('27/11/2027')!, today)).toBe(false)
     expect(ageAt(parsed, today)).toBe(64)
+  })
+  it.each([
+    'fifteenth of August nineteen sixty-two', '15th August 1962', 'August fifteenth, nineteen sixty two',
+    'the fifteenth of August nineteen hundred and sixty-two',
+  ])('understands the spoken birth date %s', spoken => {
+    expect(parseDate(spoken)).toEqual({ day: 15, month: 8, year: 1962 })
+  })
+  it('parses compound days and preserves ambiguous dates for review', () => {
+    expect(parseDate('August twenty first two thousand and one')).toEqual({ day: 21, month: 8, year: 2001 })
+    expect(parseDate('August first nineteen oh eight')).toEqual({ day: 1, month: 8, year: 1908 })
+    expect(parseDate('first of August sixty two')).toBeUndefined()
+    expect(parseDate('fifteen August nineteen sixty two or sixty three')).toBeUndefined()
+    expect(parseDate('-2 August 1962')).toBeUndefined()
+  })
+  it.each([
+    'मेरा नाम रामधारी यादव है। मैं चौंसठ साल का हूँ। मेरा जन्म पंद्रह अगस्त उन्नीस सौ बासठ को हुआ था। मेरा पिन कोड आठ डबल जीरो डबल जीरो एक है।',
+    'Mera naam Ramdhari Yadav hai aur main chaunsath saal ka hoon. Meri janam ki tareekh pandrah August unnis sau baasath hai, aur mera pin code aath double zero double zero ek hai.',
+    'My name is Ramdhari Yadav and I am sixty-four years old. I was born on the fifteenth of August nineteen sixty-two. My PIN code is eight double zero double zero one.',
+  ])('fills the required pension details from a full introduction', introduction => {
+    const { candidates } = say(introduction)
+    expect(Object.fromEntries(candidates.map(({ field, raw }) => [field.id, mapValue(field, raw).value])))
+      .toEqual({ name: 'Ramdhari Yadav', age: '64', dob: '15/08/1962', pincode: '800001' })
+  })
+  it.each([
+    'Name Ramdhari Yadav, OTP 123456',
+    'Name Ramdhari Yadav, 123456 is the verification code',
+    'नाम रामधारी यादव, ओ टी पी एक दो तीन चार पांच छह',
+    'My one-time password is 123456. Name Ramdhari Yadav',
+    'Captcha 123456',
+  ])('keeps a mixed security-code turn out of fields and transcript', text => {
+    const session = new Session()
+    session.ask('name', now)
+    const result = say(text, {}, session)
+    expect(result.command).toBe('manual')
+    expect(result.candidates).toEqual([])
+    expect(result.diff).toEqual([{ type: 'kept', text: 'Enter the verification code on the form.' }])
   })
   it('resolves inline correction ahead of filler cleanup', () => {
     const result = say('Naam Ramdhari Yadav, umar 62... um, nahi, 64')
@@ -95,6 +132,8 @@ describe('validation and confirmation', () => {
     const mismatched = { age: '64', dob: '15/08/1980', pincode: '800001', state: 'Tamil Nadu', district: 'Patna' }
     expect(Object.keys(crossValidate(schema, mismatched, today)).sort()).toEqual(['age', 'dob', 'pincode', 'state'])
     expect(crossValidate(schema, { ...mismatched, dob: '15/08/1962', pincode: '123456' }, today)).toEqual({})
+    expect(Object.keys(crossValidate(schema, { dob: '28/11/1962', age: '64' }, today)).sort()).toEqual(['age', 'dob'])
+    expect(crossValidate(schema, { dob: '27/11/1962', age: '64' }, today)).toEqual({})
   })
   it('requires a finished read-back and a clear form before confirming', () => {
     expect(transition('LISTENING', 'READ_BACK', { clear: false })).toBe('LISTENING')

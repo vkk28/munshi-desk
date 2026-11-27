@@ -1,6 +1,8 @@
 import { Filler } from './filler'
 import { transition } from './fsm'
 import { mapValue } from './mapper/rules'
+import { nextInterviewQuestion } from './interview'
+import { keyText } from './semantics'
 import { interpret } from './pipeline'
 import { phrase, readBack, speechLocale } from './prompts'
 import { Scanner } from './scanner'
@@ -21,6 +23,8 @@ export interface DeskView {
   line: string
   review: string[]
   completed: boolean
+  readbackFallback?: boolean
+  interview?: { fieldId: string; text: string }
   locked: boolean
 }
 interface Config {
@@ -33,6 +37,9 @@ interface Config {
 }
 
 const defaultNote = 'Start a session to fill this form with voice or text.'
+const fallbackNote = 'Audio read-back could not finish. Read these details aloud to the applicant, then mark the review complete.'
+const changedNote = 'The form changed. Read back again before submitting.'
+const uncertain = (confidence?: number) => confidence !== undefined && confidence > 0 && confidence < 0.75
 
 export class DeskController {
   private scanner: Scanner
@@ -49,6 +56,8 @@ export class DeskController {
   private extraHints: Record<string, string[]> = {}
   private staged: Record<string, Issue> = {}
   private completed = false
+  private readbackFallback = false
+  private interview?: DeskView['interview']
   private writing = false
   private checkpointVisited = false
   private attached = false
@@ -75,6 +84,8 @@ export class DeskController {
     return {
       phase: this.phase, language: this.language,
       diff: this.diff, source: this.source, note: this.note, line: this.line, review: this.review, completed: this.completed,
+      readbackFallback: this.readbackFallback || undefined,
+      interview: this.interview,
       locked: this.phase !== 'READY',
       fields: this.schema.fields.map(field => {
         const value = values[field.id] || ''
@@ -89,6 +100,7 @@ export class DeskController {
   }
 
   start() {
+    if (this.phase !== 'IDLE') return
     this.attached = true
     this.phase = transition(this.phase, 'START')
     this.note = 'Listening for form fields.'
@@ -101,9 +113,11 @@ export class DeskController {
 
   reset() {
     this.config.speaker.cancel()
+    this.interview = undefined
     this.verification++
     this.phase = transition(this.phase, 'RESET')
     this.completed = false
+    this.readbackFallback = false
     this.fingerprint = undefined
     this.checkpointVisited = false
     this.session = new Session()
@@ -118,6 +132,7 @@ export class DeskController {
 
   dispose() {
     this.config.speaker.cancel()
+    this.interview = undefined
     this.verification++
     this.stopObserver()
     this.cleanupEvents()
@@ -126,6 +141,7 @@ export class DeskController {
   }
 
   setLanguage(language: Language) {
+    this.clearInterview()
     this.language = language
     if (this.phase === 'VERIFYING' || this.phase === 'READY') {
       this.invalidate()
@@ -139,11 +155,40 @@ export class DeskController {
     this.rescan()
   }
 
-  rescan() {
+  askNextQuestion() {
+    if (this.phase === 'IDLE') this.start()
+    if (this.phase !== 'LISTENING') return
+    this.scanSchema()
+    const question = nextInterviewQuestion(this.view.fields, this.language)
+    if (!question) return
+    this.session.clearQuestion()
+    this.interview = question
+    this.emit()
+    // The visible question stays bound until a reply or dismissal, including on silent devices.
+    void this.config.speaker.speak([question.text], speechLocale(this.language)).catch(() => {})
+  }
+
+  dismissInterview() {
+    this.clearInterview()
+    this.emit()
+  }
+
+  private clearInterview() {
+    if (!this.interview) return
+    this.interview = undefined
+    this.config.speaker.cancel()
+  }
+
+  private scanSchema() {
     const scanned = this.scanner.scan()
     this.schema = { ...scanned, fields: scanned.fields.map(field => ({
       ...field, hints: [...field.hints, ...(this.extraHints[field.id] || [])],
     })) }
+  }
+
+  rescan() {
+    this.scanSchema()
+    if (this.interview && nextInterviewQuestion(this.view.fields, this.language)?.fieldId !== this.interview.fieldId) this.clearInterview()
     this.cleanupSubmit()
     this.cleanupEvents()
     if (this.attached || this.config.holdIdle) {
@@ -169,22 +214,24 @@ export class DeskController {
     for (const id of Object.keys(this.staged)) if (!this.scanner.target(id)) delete this.staged[id]
     if (this.fingerprint && this.fingerprint !== this.valueFingerprint()) {
       this.invalidate()
-      this.note = 'The form changed. Read back again before submitting.'
+      this.note = changedNote
     }
     this.emit()
   }
 
   ingest(utterance: Utterance) {
     const text = utterance.text.trim()
-    if (!text) return
+    if (!text || (utterance.source === 'browser-mic' && this.muted)) return
     if (text.length > MAX_UTTERANCE_LENGTH) {
       this.note = LONG_UTTERANCE_MESSAGE
       this.emit()
       return
     }
     if (this.phase === 'IDLE') this.start()
+    if (this.interview && keyText(this.interview.text) === keyText(text)) return
     const values = this.values()
-    const result = interpret({ ...utterance, text }, this.schema.fields, values, this.session, this.now().getTime())
+    const field = this.interview && this.scanner.target(this.interview.fieldId)?.field
+    const result = interpret({ ...utterance, text }, this.schema.fields, values, this.session, this.now().getTime(), field)
     if (this.phase === 'PAUSED_MANUAL') {
       if (result.command === 'resume') this.resume()
       return
@@ -194,13 +241,12 @@ export class DeskController {
     if (result.command) {
       switch (result.command) {
         case 'read': void this.verify(); break
-        case 'confirm': this.confirm(); break
-        case 'no':
-          if (this.phase === 'VERIFYING') {
-            this.note = 'Say the field and its corrected value.'
-            if (this.completed) this.say('which')
-          }
+        case 'confirm':
+          if (this.phase === 'VERIFYING' && this.completed && uncertain(utterance.confidence)) {
+            this.note = 'The reply was unclear. Ask the applicant to confirm again.'
+          } else this.confirm()
           break
+        case 'no': this.requestCorrection(); break
         case 'manual': this.pause(); break
         case 'undo': this.undo(); break
         case 'resume': break
@@ -209,19 +255,11 @@ export class DeskController {
       return
     }
     if (result.question) {
+      this.clearInterview()
       this.session.ask(result.question.id, this.now().getTime())
       this.note = `Waiting for ${result.question.label}.`
     } else if (result.candidates.length) this.session.clearQuestion()
-    if (result.candidates.length) {
-      const reread = this.phase === 'VERIFYING' && this.completed
-      const previous = this.fingerprint
-      this.invalidate()
-      const confidence = utterance.confidence
-      const changed = this.apply(result.candidates, confidence)
-      if (reread && changed.length && previous && !Object.keys(this.issues()).length) {
-        void this.verify(changed)
-      } else this.maybeCheckpoint()
-    }
+    if (result.candidates.length) this.applyAndReview(result.candidates, utterance.confidence)
     this.emit()
   }
 
@@ -230,17 +268,13 @@ export class DeskController {
     if (!field || isCheckpoint(field) || this.phase === 'PAUSED_MANUAL') return
     if (this.phase === 'IDLE') this.start()
     if (this.view.phase === 'PAUSED_MANUAL') return
-    const reread = this.phase === 'VERIFYING' && this.completed
-    this.invalidate()
-    const changed = this.apply([{ field, raw }])
-    if (reread && changed.length && !Object.keys(this.issues()).length) void this.verify(changed)
-    else this.maybeCheckpoint()
+    this.applyAndReview([{ field, raw }])
     this.emit()
   }
 
   accept(id: string) {
     const issue = this.staged[id]
-    if (issue?.code === 'confidence' && issue.proposed) this.edit(id, issue.proposed)
+    if (issue?.code === 'confidence' && issue.proposed !== undefined) this.edit(id, issue.proposed || 'clear')
   }
 
   undo() {
@@ -274,15 +308,21 @@ export class DeskController {
     this.emit()
   }
 
-  async verify(only?: string[]) {
+  verify() {
+    return this.readApplication()
+  }
+
+  private async readApplication(only?: string[]) {
+    this.clearInterview()
     if (this.phase === 'IDLE') this.start()
     if (this.phase === 'VERIFYING' || this.phase === 'READY') this.invalidate()
     if (this.phase !== 'LISTENING') return
+    this.scanSchema()
     const values = this.values()
     const issues = this.issues(values)
     const missing = this.missing(values)
-    const lines = readBack(this.schema.fields, values, this.language, only)
-    if (Object.keys(issues).length || missing.length || !lines.length) {
+    const allLines = readBack(this.schema.fields, values, this.language)
+    if (Object.keys(issues).length || missing.length || !allLines.length) {
       this.note = Object.keys(issues).length ? 'Resolve the amber fields before read-back.'
         : missing.length ? `Complete ${missing[0].label} before read-back.` : 'Fill a form field before starting read-back.'
       if (Object.keys(issues).length) this.say('issue')
@@ -293,36 +333,81 @@ export class DeskController {
     const token = ++this.verification
     this.completed = false
     this.fingerprint = this.valueFingerprint()
-    this.review = readBack(this.schema.fields, values, this.language)
-    this.note = only ? 'Reading back the corrected fields.' : 'Listen to the critical fields.'
+    const lines = only ? readBack(this.schema.fields, values, this.language, only) : allLines
+    this.review = only ? [...new Set([...allLines, ...lines])] : allLines
+    this.note = only ? 'Reading back the corrected fields.' : 'Listen to the details entered on this form.'
     this.emit()
     const queue = only ? lines : [phrase(this.language, 'intro'), ...lines]
+    let spoken = false
     try {
-      await this.config.speaker.speak([...queue, phrase(this.language, 'confirm')], speechLocale(this.language), line => {
+      const result = await this.config.speaker.speak([...queue, phrase(this.language, 'confirm')], speechLocale(this.language), line => {
         if (token === this.verification) {
           this.line = redactIds(line)
           this.emit()
         }
       })
+      spoken = result !== false
     } catch { /* The on-screen verification list remains available. */ }
     if (token !== this.verification) return
-    this.completed = true
+    this.completed = spoken
+    this.readbackFallback = !spoken
     this.line = ''
-    this.note = 'Say “Haan” or confirm the read-back.'
+    this.note = spoken ? 'Say “Haan” or confirm the read-back.' : fallbackNote
+    this.emit()
+  }
+
+  acknowledgeReadback() {
+    if (this.phase !== 'VERIFYING' || !this.readbackFallback) return
+    if (!this.verificationCurrent()) {
+      this.invalidate()
+      this.note = changedNote
+    } else {
+      this.completed = true
+      this.readbackFallback = false
+      this.note = 'Screen review complete. Say “Haan” or confirm.'
+    }
+    this.emit()
+  }
+
+  requestCorrection() {
+    if (this.phase !== 'VERIFYING' && this.phase !== 'READY') return
+    this.invalidate()
+    this.note = 'Say the field and its corrected value, then request a new read-back.'
+    this.say('which')
     this.emit()
   }
 
   confirm() {
+    if (this.phase === 'READY') return
     if (this.phase !== 'VERIFYING' || !this.completed) {
-      this.note = this.phase === 'VERIFYING' ? 'Wait for read-back to finish.' : 'Complete read-back before confirming.'
+      this.note = this.readbackFallback ? fallbackNote
+        : this.phase === 'VERIFYING' ? 'Wait for read-back to finish.' : 'Complete read-back before confirming.'
       this.emit()
       return
     }
-    const clear = this.fingerprint === this.valueFingerprint() && !Object.keys(this.issues()).length && !this.missing().length
+    const clear = this.verificationCurrent()
     this.phase = transition(this.phase, 'CONFIRM', { clear, completed: this.completed })
-    this.note = clear ? 'Citizen confirmed. Submit is unlocked.' : 'The form changed. Read back again before submitting.'
+    this.note = clear ? 'Citizen confirmed. Submit is unlocked.' : changedNote
     if (!clear) this.invalidate()
     this.emit()
+  }
+
+  private applyAndReview(candidates: Candidate[], confidence?: number) {
+    // A short correction can reuse only the exact form the applicant has already reviewed.
+    const reviewed = this.phase === 'VERIFYING' && this.completed && this.verificationCurrent()
+      ? this.values() : undefined
+    const reviewedLayout = reviewed && this.formLayout()
+    this.invalidate()
+    this.apply(candidates, confidence)
+    if (reviewed && !Object.keys(this.issues()).length) {
+      this.scanSchema()
+      const current = this.values()
+      const changed = this.schema.fields.filter(field => !isCheckpoint(field) && current[field.id] !== reviewed[field.id])
+      const partial = reviewedLayout === this.formLayout() && changed.length > 0
+      void this.readApplication(partial ? changed.map(field => field.id) : undefined)
+      return
+    }
+    this.maybeCheckpoint()
   }
 
   private apply(candidates: Candidate[], confidence?: number) {
@@ -335,12 +420,12 @@ export class DeskController {
       for (const { field, raw, op } of candidates) {
         if (!field.writable || isCheckpoint(field)) continue
         const mapped = mapValue(field, raw)
-        const lowConfidence = Boolean(confidence && confidence < 0.75)
         const issue = mapped.issue || validate(field, mapped.value, today) ||
-          (lowConfidence ? { code: 'confidence', message: 'Check the proposed value.' } as const : undefined)
+          (uncertain(confidence) ? { code: 'confidence', message: mapped.value
+            ? 'Check the proposed value.' : 'Did the applicant mean to clear this field?' } as const : undefined)
         touched.push(field.id)
         if (issue) {
-          this.staged[field.id] = { ...issue, proposed: mapped.value || undefined }
+          this.staged[field.id] = { ...issue, proposed: mapped.value }
           continue
         }
         const previousValue = this.filler.read(field.id)
@@ -359,7 +444,6 @@ export class DeskController {
       this.note = 'Check the fields marked in amber.'
       this.say('issue')
     } else if (touched.length) this.note = touched.length === 1 ? 'Field updated.' : `${touched.length} fields updated.`
-    return patches.map(patch => patch.fieldId)
   }
 
   private values() {
@@ -370,26 +454,39 @@ export class DeskController {
     const today = this.now()
     const issues = crossValidate(this.schema, values, today)
     for (const field of this.schema.fields) {
-      const issue = this.staged[field.id] || validate(field, values[field.id], today)
+      const issue = this.staged[field.id] || validate(field, values[field.id], today) ||
+        (!isCheckpoint(field) && this.filler.violatesConstraints(field.id)
+          ? { code: 'invalid' as const, message: 'Check the format required by this form.' } : undefined)
       if (issue) issues[field.id] = issue
     }
     return issues
   }
 
   private missing(values = this.values()) {
-    return this.schema.fields.filter(field => field.required && (isCheckpoint(field) ?
-      !this.filler.checkpointComplete(field.id) : !hasValue(field, values[field.id])))
+    return this.schema.fields.filter(field => isCheckpoint(field)
+      ? (field.required || Boolean(values[field.id])) && !this.filler.checkpointComplete(field.id)
+      : field.required && !hasValue(field, values[field.id]))
+  }
+
+  private formLayout() {
+    return JSON.stringify(this.schema.fields.map(field =>
+      [field.id, field.label, field.kind, field.semantic, field.required]))
   }
 
   private valueFingerprint() {
-    return JSON.stringify(this.schema.fields.map(field => [field.id, this.filler.read(field.id), field.required]))
+    return JSON.stringify([this.formLayout(), this.values()])
+  }
+
+  private verificationCurrent() {
+    this.scanSchema()
+    return this.fingerprint === this.valueFingerprint() && !Object.keys(this.issues()).length && !this.missing().length
   }
 
   private allowSubmit() {
     if (this.phase !== 'READY') return false
-    if (this.fingerprint === this.valueFingerprint() && !Object.keys(this.issues()).length && !this.missing().length) return true
+    if (this.verificationCurrent()) return true
     this.invalidate()
-    this.note = 'The form changed. Read back again before submitting.'
+    this.note = changedNote
     this.emit()
     return false
   }
@@ -405,6 +502,7 @@ export class DeskController {
 
   private pause() {
     if (this.phase !== 'LISTENING' || !this.schema.fields.some(isCheckpoint)) return
+    this.clearInterview()
     this.phase = transition(this.phase, 'PAUSE')
     this.source = undefined
     this.diff = [{ type: 'kept', text: 'Voice input paused for manual verification.' }]
@@ -414,6 +512,7 @@ export class DeskController {
   }
 
   private invalidate() {
+    this.clearInterview()
     if (this.phase === 'VERIFYING' || this.phase === 'READY') {
       this.verification++
       this.config.speaker.cancel()
@@ -421,6 +520,7 @@ export class DeskController {
       this.line = ''
     }
     this.completed = false
+    this.readbackFallback = false
     this.fingerprint = undefined
     this.review = []
   }
@@ -438,6 +538,7 @@ export class DeskController {
     if (this.writing) return
     const target = this.scanner.matches(event.target as Element)
     if (!target) return
+    if (target.field.id === this.interview?.fieldId) this.clearInterview()
     if (isCheckpoint(target.field)) {
       if (!this.filler.read(target.field.id)) this.checkpointVisited = false
       if (!this.checkpointVisited) this.pause()
