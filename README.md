@@ -4,6 +4,10 @@ Munshi Desk is a voice-first desk for Indian civic forms. A citizen says their d
 
 Built for **Scaler × Wispr Flow · Build for Bharat**, public infrastructure and civic services.
 
+![Old Age Pension workspace with a filled practice form on the left and the Voice desk showing a PIN correction on the right](docs/images/pension-workspace.webp)
+
+*The desk updates the PIN from 800002 to 800001 and waits for the citizen to confirm. This practice form uses fictional data.*
+
 ## Run the prototype
 
 ```sh
